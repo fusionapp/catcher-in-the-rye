@@ -1,25 +1,27 @@
-{-# LANGUAGE DataKinds       #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeOperators   #-}
 module Lib
-    ( startApp
+    ( app
+    , startApp
     ) where
 
-import Data.Aeson
-import Data.Aeson.TH
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans.Except (ExceptT, throwE)
+import Data.Text (Text)
+import Data.Thyme.Clock (getCurrentTime)
+import Mailgun (APIKey, UnverifiedMessage, verifySignature)
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Servant
 
-data User = User
-  { userId        :: Int
-  , userFirstName :: String
-  , userLastName  :: String
-  } deriving (Eq, Show)
+type Handler = ExceptT ServantErr IO
 
-$(deriveJSON defaultOptions ''User)
+type MeadLoader = Get '[PlainText] Text
+                  :<|> ReqBody '[JSON] UnverifiedMessage :> Post '[JSON] ()
 
-type API = "users" :> Get '[JSON] [User]
+
+type API = "mg" :> (
+  Get '[PlainText] Text
+  :<|> "mead" :> MeadLoader
+  )
 
 startApp :: IO ()
 startApp = run 8080 app
@@ -31,9 +33,22 @@ api :: Proxy API
 api = Proxy
 
 server :: Server API
-server = return users
+server = root :<|> meadLoader
+  where root = return "Mailgun service endpoint."
 
-users :: [User]
-users = [ User 1 "Isaac" "Newton"
-        , User 2 "Albert" "Einstein"
-        ]
+errSignature :: ServantErr
+errSignature = err403 { errBody = "Invalid signature." }
+
+key :: APIKey
+key = undefined
+
+meadLoader :: Server MeadLoader
+meadLoader = root :<|> loadData
+  where root :: Handler Text
+        root = return "M&M loader endpoint."
+        loadData :: UnverifiedMessage -> Handler ()
+        loadData message' = do
+          now <- liftIO getCurrentTime
+          case verifySignature key now message' of
+            Just message -> return ()
+            Nothing -> throwE errSignature
