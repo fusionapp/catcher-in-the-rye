@@ -1,74 +1,73 @@
-{-|
-Module : Mailgun
--}
+-- | Mailgun message webhook handling.
 module Mailgun
-  ( APIKey(..)
-  , Message(..)
+  ( Message(..)
+  , MessageBody
   , UVM(..)
   , UnverifiedMessage
-  , verifySignature
   , signMessage
+  , verifySignature
+  , withMessage
+  , asciiToInteger
+  , integerToAscii
   ) where
 
-import           Control.Lens (review)
+import           App (AppM, appConfig, configMailgunApiKey)
+import           Control.Lens (view, review)
 import           Control.Monad (guard)
+import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.Trans.Class (lift)
+import           Control.Monad.Trans.Except (throwE)
 import           Crypto.Hash (SHA256, digestFromByteString)
 import           Crypto.MAC.HMAC (HMAC(HMAC), hmac)
-import           Data.Aeson (FromJSON(..))
-import           Data.Aeson.TH (deriveJSON, defaultOptions)
 import           Data.AffineSpace ((.-.))
-import           Data.ByteArray (ByteArray, ByteArrayAccess)
 import           Data.ByteArray.Encoding (Base(Base16), convertToBase, convertFromBase)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as C8
+import qualified Data.ByteString.Lazy as LBS
 import           Data.Either.Combinators (rightToMaybe)
+import           Data.Maybe (listToMaybe)
 import           Data.Monoid ((<>))
-import qualified Data.Text as T
-import           Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import           Data.Thyme.Clock (UTCTime, fromSeconds)
+import           Data.Thyme.Clock (UTCTime, fromSeconds, getCurrentTime)
 import           Data.Thyme.Clock.POSIX (posixTime)
 import           Data.Thyme.Format.Aeson ()
+import           Files (Files, MultiPartDataT)
+import           Mailgun.APIKey (APIKey(..))
+import           Network.Wai.Parse (fileContent)
+import           Servant (ServantErr(..), err403)
+
+-- | Servant capture for a Mailgun message as multipart/form-data.
+type MessageBody = Files (Maybe UnverifiedMessage)
 
 -- | A record representing an email message delivered by Mailgun over HTTP.
 data Message = Message
-               { timestamp :: Integer
+               { msgTimestamp :: Integer
                -- ^ The timestamp attached to the signature.
-               , token :: T.Text
+               , msgToken :: ByteString
                -- ^ A random token unique to this message.
-               , signature :: T.Text
+               , msgSignature :: ByteString
                -- ^ The signature of the timestamp and token.
+               , msgAttachment :: LBS.ByteString
+               -- ^ The data of the first attachment.
                }
              deriving (Show, Eq)
 
-$(deriveJSON defaultOptions ''Message)
-
--- | A Mailgun API key.
-newtype APIKey = APIKey { unAPIKey :: ByteString }
-  deriving (Show, Eq, ByteArrayAccess)
-
--- | Implementation detail of UnverifiedMessage.
+-- | Implementation detail of UnverifiedMessage. This isn't promotable in GHC
+-- 7.10 if we remove the type parameter, hence this arrangement.
 data UVM m = Unverified { unsafeMessage :: m }
   deriving Show
 
-instance FromJSON (UVM Message) where
-  parseJSON value = Unverified <$> parseJSON value
-
 -- | A Mailgun message that has not had its signature generated or verified
--- yet. This isn't promotable in GHC 7.10 if we remove the type parameter,
--- hence this arrangement.
+-- yet.
 type UnverifiedMessage = UVM Message
-
-encodeHex :: ByteArrayAccess b => b -> T.Text
-encodeHex = decodeUtf8 . convertToBase Base16
-
-decodeHex :: ByteArray b => T.Text -> Either String b
-decodeHex = convertFromBase Base16 . encodeUtf8
 
 secondsToPosix :: Real n => n -> UTCTime
 secondsToPosix = review posixTime . fromSeconds
 
 integerToAscii :: Integer -> ByteString
 integerToAscii = C8.pack . show
+
+asciiToInteger :: ByteString -> Integer
+asciiToInteger = read . C8.unpack
 
 -- | Verify the signature on a Mailgun message.
 -- Returns 'Just' the message if the signature is valid, or 'Nothing' if not.
@@ -81,15 +80,14 @@ verifySignature :: APIKey
                 -> Maybe Message
                 -- ^ The verified message.
 verifySignature key now (Unverified message) = do
-  let offset = now .-. secondsToPosix (timestamp message)
+  let offset = now .-. secondsToPosix (msgTimestamp message)
   guard $ offset < fromSeconds (3600 :: Integer)
   guard $ offset > fromSeconds (-3600 :: Integer)
-  signature' <- rightToMaybe . decodeHex . signature $ message
-  digest <- digestFromByteString (signature' :: ByteString)
+  signature <- rightToMaybe . convertFromBase Base16 . msgSignature $ message
+  digest <- digestFromByteString (signature :: ByteString)
   let expected :: HMAC SHA256
-      expected = hmac key (timestamp' <> token')
-      timestamp' = integerToAscii . timestamp $ message
-      token' = encodeUtf8 . token $ message
+      expected = hmac key (timestamp' <> msgToken message)
+      timestamp' = integerToAscii . msgTimestamp $ message
   guard $ expected == HMAC digest
   return message
 
@@ -100,9 +98,32 @@ signMessage :: APIKey
             -- ^ The message to sign; the existing signature value will be overwritten.
             -> Message
             -- ^ The signed message.
-signMessage key (Unverified message) = message { signature = signature' }
-  where timestamp' = integerToAscii . timestamp $ message
-        token' = encodeUtf8 . token $ message
+signMessage key (Unverified message) = message { msgSignature = convertToBase Base16 mac }
+  where timestamp' = integerToAscii . msgTimestamp $ message
         mac :: HMAC SHA256
-        mac = hmac key (timestamp' <> token')
-        signature' = encodeHex mac
+        mac = hmac key (timestamp' <> msgToken message)
+
+-- | Error to return for an invalid / missing Mailgun signature.
+errSignature :: ServantErr
+errSignature = err403 { errBody = "Invalid signature." }
+
+-- | Create a multipart/form-data handler from a handler that takes a Mailgun
+-- message.
+withMessage :: (Message -> AppM a)
+            -- ^ The handler to lift.
+            -> MultiPartDataT (Maybe UnverifiedMessage) -> AppM a
+            -- ^ The multipart/form-data handler.
+withMessage handler multipart = do
+  m <- liftIO $ multipart $ \(params, files) ->
+    return $ Unverified <$>
+      ( Message
+        <$> (asciiToInteger <$> lookup "timestamp" params)
+        <*> lookup "token" params
+        <*> lookup "signature" params
+        <*> (fileContent . snd <$> listToMaybe files)
+      )
+  now <- liftIO getCurrentTime
+  key <- view (appConfig . configMailgunApiKey)
+  case verifySignature key now =<< m of
+    Nothing -> lift (throwE errSignature)
+    Just message -> handler message

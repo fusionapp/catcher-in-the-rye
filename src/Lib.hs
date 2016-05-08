@@ -1,54 +1,39 @@
 module Lib
-    ( app
-    , startApp
+    ( serveApp
     ) where
 
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Except (ExceptT, throwE)
+import App (App, AppM, Handler)
+import Control.Monad.Trans.Reader (runReaderT)
 import Data.Text (Text)
-import Data.Thyme.Clock (getCurrentTime)
-import Mailgun (APIKey, UnverifiedMessage, verifySignature)
-import Network.Wai
-import Network.Wai.Handler.Warp
+import Mailgun (MessageBody, withMessage)
+import Network.Wai (Application)
 import Servant
+import Vehicle (loadVehicleData)
 
-type Handler = ExceptT ServantErr IO
+type AppServer api = ServerT api AppM
 
 type MeadLoader = Get '[PlainText] Text
-                  :<|> ReqBody '[JSON] UnverifiedMessage :> Post '[JSON] ()
-
+                  :<|> MessageBody :> Post '[JSON] ()
 
 type API = "mg" :> (
   Get '[PlainText] Text
   :<|> "mead" :> MeadLoader
   )
 
-startApp :: IO ()
-startApp = run 8080 app
-
-app :: Application
-app = serve api server
-
 api :: Proxy API
 api = Proxy
 
-server :: Server API
+readerToHandler :: App -> AppM :~> Handler
+readerToHandler app = Nat $ \x -> runReaderT x app
+
+server :: AppServer API
 server = root :<|> meadLoader
   where root = return "Mailgun service endpoint."
 
-errSignature :: ServantErr
-errSignature = err403 { errBody = "Invalid signature." }
-
-key :: APIKey
-key = undefined
-
-meadLoader :: Server MeadLoader
+meadLoader :: AppServer MeadLoader
 meadLoader = root :<|> loadData
-  where root :: Handler Text
-        root = return "M&M loader endpoint."
-        loadData :: UnverifiedMessage -> Handler ()
-        loadData message' = do
-          now <- liftIO getCurrentTime
-          case verifySignature key now message' of
-            Just message -> return ()
-            Nothing -> throwE errSignature
+  where root = return "M&M loader endpoint."
+        loadData = withMessage loadVehicleData
+
+serveApp :: App -> Application
+serveApp app = serve api (enter (readerToHandler app) server)
