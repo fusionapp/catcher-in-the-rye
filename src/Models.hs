@@ -1,18 +1,12 @@
 {-# OPTIONS_HADDOCK prune #-}
 
 -- | Persistent model definitions for persisted data.
-module Models
-  ( migrateAll
-  , DataImportId
-  , DataImport(..)
-  ) where
+module Models where
 
+import Data.ByteString (ByteString)
+import Database.Persist.Quasi
 import Database.Persist.TH
-import ImportType (ImportType)
+import PayloadTag (PayloadTag)
 
-share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
-DataImport
-    type ImportType
-    email String
-    deriving Show
-|]
+share [mkPersist sqlSettings, mkMigrate "migrateAll"]
+  $(persistFileWith lowerCaseSettings "config/models")

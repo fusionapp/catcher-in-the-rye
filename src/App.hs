@@ -1,23 +1,29 @@
 -- | The main application code and data types.
-module App
-  ( App
-  , AppM
-  , Handler
+module App (
+  -- * Core application types
+    App
   , appConfig
   , appConnPool
+  , AppM
+  , Handler
   , mkApp
   , runDB
+  -- * Global application configuration
   , AppConfig(..)
   , configMailgunApiKey
   , configConnectionString
   , configConnections
   , configSchedules
+  , configHttpPort
+  , configHttpsPort
+  , configCertificate
+  -- ** Upload scheduling
   , UploadSchedule(..)
   , scheduleSchedule
   , scheduleDestination
   ) where
 
-import Control.Lens (view, makeLenses)
+import Control.Lens (Lens', view, makeLensesWith)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Logger (MonadLogger)
 import Control.Monad.Reader (MonadReader)
@@ -26,9 +32,10 @@ import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Reader (ReaderT)
 import Data.Aeson.TH
 import Data.Aeson.Types (FromJSON(..), (.:), camelTo2, withObject)
-import Data.Map (Map)
+import Data.Map.Strict (Map)
 import Data.Text (Text)
-import Database.Persist.Sqlite (ConnectionPool, SqlPersistT, createSqlitePool, runSqlPool, runMigration)
+import Database.Persist.Sqlite (ConnectionPool, SqlPersistT, createSqlitePool, runSqlPool, runMigrationSilent)
+import LensRules (noSigs)
 import Mailgun.APIKey (APIKey(..))
 import Models (migrateAll)
 import Servant (ServantErr)
@@ -40,7 +47,7 @@ data UploadSchedule = UploadSchedule
   { _scheduleSchedule :: CronSchedule
   , _scheduleDestination :: String
   } deriving (Show, Eq)
-makeLenses ''UploadSchedule
+makeLensesWith noSigs ''UploadSchedule
 
 instance FromJSON UploadSchedule where
   parseJSON = withObject "UploadSchedule" $
@@ -48,27 +55,60 @@ instance FromJSON UploadSchedule where
          <$> (either fail return . parseCronSchedule =<< o .: "schedule")
          <*> o .: "destination"
 
+-- | The schedule on which uploads will be performed.
+scheduleSchedule :: Lens' UploadSchedule CronSchedule
+
+-- | The destination URI the data will be uploaded to.
+scheduleDestination :: Lens' UploadSchedule String
+
 -- | Configuration for the application.
 data AppConfig = AppConfig
   { _configMailgunApiKey :: APIKey
-  -- ^ The Mailgun API key; needed to verify signatures.
   , _configConnectionString :: Text
-  -- ^ Connection string for connecting to the database.
   , _configConnections :: Int
-  -- ^ Number of connections to hold in the DB connection pool.
   , _configSchedules :: Map Text UploadSchedule
-  -- ^ The upload schedules.
+  , _configHttpPort :: Maybe Int
+  , _configHttpsPort :: Maybe Int
+  , _configCertificate :: Maybe FilePath
   } deriving (Show, Eq)
+deriveFromJSON defaultOptions {fieldLabelModifier = camelTo2 '-' . drop 7} ''AppConfig
+makeLensesWith noSigs ''AppConfig
 
-deriveFromJSON defaultOptions {fieldLabelModifier = camelTo2 '_'} ''AppConfig
-makeLenses ''AppConfig
+-- | The Mailgun API key; needed to verify signatures.
+configMailgunApiKey :: Lens' AppConfig APIKey
+
+-- | Connection string for connecting to the database.
+configConnectionString :: Lens' AppConfig Text
+
+-- | Number of connections to hold in the DB connection pool.
+configConnections :: Lens' AppConfig Int
+
+-- | The upload schedules.
+configSchedules :: Lens' AppConfig (Map Text UploadSchedule)
+
+-- | Port to serve HTTP on, or 'Nothing' to use the default.
+configHttpPort :: Lens' AppConfig (Maybe Int)
+
+-- | Port to serve HTTPS on, or 'Nothing' to disable.
+--
+-- If HTTPS is enabled then HTTP will be disabled.
+configHttpsPort :: Lens' AppConfig (Maybe Int)
+
+-- | Path to the certificate / private key / chain for TLS.
+configCertificate :: Lens' AppConfig (Maybe FilePath)
 
 -- | The main application data type.
 data App = App
   { _appConfig :: AppConfig
   , _appConnPool :: ConnectionPool
   }
-makeLenses ''App
+makeLensesWith noSigs ''App
+
+-- | The application configuration.
+appConfig :: Lens' App AppConfig
+
+-- | The application-wide database connection pool.
+appConnPool :: Lens' App ConnectionPool
 
 -- | A Servant handler.
 --
@@ -79,18 +119,19 @@ type Handler = ExceptT ServantErr IO
 -- | Monad transformer stack for a handler in our app.
 type AppM = ReaderT App Handler
 
--- | Prepare the application to run.
+-- | Build the application from a configuration.
 --
--- Currently just starts the DB connection pool and runs migrations.
---mkApp :: AppConfig -> IO App
+-- Currently just starts the DB connection pool and runs migrations. The type
+-- of the Monad is generalized to allow running under different LoggerT setups.
 mkApp :: (MonadIO m, MonadBaseControl IO m, MonadLogger m) => AppConfig -> m App
 mkApp config = do
     pool <- createSqlitePool (view configConnectionString config) (view configConnections config)
-    runSqlPool (runMigration migrateAll) pool
+    -- Discard the list of migrations run
+    _ <- runSqlPool (runMigrationSilent migrateAll) pool
     return (App config pool)
 
 -- | Run a database transaction in the application's DB connection pool.
 runDB :: (MonadIO m, MonadReader App m) => SqlPersistT IO a -> m a
-runDB q = do
+runDB transaction = do
   pool <- view appConnPool
-  liftIO $ runSqlPool q pool
+  liftIO $ runSqlPool transaction pool

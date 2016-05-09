@@ -1,14 +1,17 @@
-module Lib
+-- | Main API definitions.
+module API
     ( serveApp
     ) where
 
 import App (App, AppM, Handler)
 import Control.Monad.Trans.Reader (runReaderT)
 import Data.Text (Text)
-import Mailgun (MessageBody, withMessage)
+import Mailgun (MessageBody, msgAttachment, withMessage)
+import Models (Payload(Payload))
 import Network.Wai (Application)
+import Payload (storePayload)
+import PayloadTag (PayloadTag(Vehicle))
 import Servant
-import Vehicle (loadVehicleData)
 
 type AppServer api = ServerT api AppM
 
@@ -31,9 +34,10 @@ server = root :<|> meadLoader
   where root = return "Mailgun service endpoint."
 
 meadLoader :: AppServer MeadLoader
-meadLoader = root :<|> loadData
+meadLoader = root :<|> withMessage loadData
   where root = return "M&M loader endpoint."
-        loadData = withMessage loadVehicleData
+        loadData message = storePayload (Payload Vehicle (msgAttachment message))
 
+-- | Serve the API as a WAI application.
 serveApp :: App -> Application
 serveApp app = serve api (enter (readerToHandler app) server)
