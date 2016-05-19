@@ -1,0 +1,21 @@
+sudo: false
+cache:
+  directories:
+    - $HOME/.cabal
+    - $HOME/.ghc
+    - $HOME/.stack
+before_install:
+  # Download and unpack the stack executable
+  - mkdir -p $HOME/.local/bin
+  - export PATH=$HOME/.local/bin:$PATH
+  - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C $HOME/.local/bin '*/stack'
+  # Use the FPComplete's S3 Hackage mirror
+  - mkdir -p $HOME/.cabal
+  - echo 'remote-repo: hackage.haskell.org:http://hackage.fpcomplete.com/' > $HOME/.cabal/config
+  - echo 'remote-repo-cache: $HOME/.cabal/packages' >> $HOME/.cabal/config
+  # Install GHC etc
+  - stack setup
+install:
+  - stack build --test --no-run-tests
+script:
+  - stack --no-terminal test
