@@ -24,7 +24,7 @@ runLoggingT = runStderrLoggingT . filterLogger (const (> LevelDebug))
 
 -- | Schedule uploads to a particular destination.
 scheduleUpload :: ConnectionPool
-               -- ^ Aapplication DB connection pool.
+               -- ^ Application DB connection pool.
                -> Text
                -- ^ Text form of the payload tag.
                -> UploadSchedule
@@ -54,4 +54,3 @@ main = do
       Nothing -> error "Missing certificate path"
     Nothing -> run port wapp
       where port = fromMaybe 8080 . view configHttpPort $ config
-              
