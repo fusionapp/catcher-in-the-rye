@@ -73,22 +73,30 @@ spec = do
           , msgSignature = ""
           , msgAttachment = ""
           }
-    it "returns Nothing if the signature is invalid base16" $
-      verifySignature key now (Unverified message { msgSignature = "aoeu" }) `shouldBe` Nothing
-    it "returns Nothing if the signature is too short" $
-      verifySignature key now (Unverified message { msgSignature = "aaabb" }) `shouldBe` Nothing
-    it "returns Nothing if the signature does not verify" $
-      verifySignature key now (Unverified message { msgToken = "aabbccdd" }) `shouldBe` Nothing
-    it "returns Nothing if the signature verifies but the timestamp is too old" $
-      verifySignature key (now .+^ fromSeconds (4000 :: Integer)) (Unverified message) `shouldBe` Nothing
-    it "returns Nothing if the signature verifies but the timestamp is too new" $
-      verifySignature key (now .-^ fromSeconds (4000 :: Integer)) (Unverified message) `shouldBe` Nothing
+        verify now' message' = verifySignature key now' (Unverified message')
+    it "returns Nothing if the signature is invalid base16" $ do
+      let message' = message { msgSignature = "aoeu" }
+      verify now message' `shouldBe` Nothing
+    it "returns Nothing if the signature is too short" $ do
+      let message' = message { msgSignature = "aaabb" }
+      verify now message' `shouldBe` Nothing
+    it "returns Nothing if the signature does not verify" $ do
+      let message' = message { msgToken = "aabbccdd" }
+      verify now message' `shouldBe` Nothing
+    it "returns Nothing if the signature verifies but the timestamp is too old" $ do
+      let now' = now .+^ fromSeconds (4000 :: Integer)
+      verify now' message `shouldBe` Nothing
+    it "returns Nothing if the signature verifies but the timestamp is too new" $ do
+      let now' = now .-^ fromSeconds (4000 :: Integer)
+      verify now' message `shouldBe` Nothing
     it "returns Just the message if the signature verifies" $
-      verifySignature key now (Unverified message) `shouldBe` Just message
-    it "returns Just the message if the signature verifies with a recent timestamp" $
-      verifySignature key (now .+^ fromSeconds (1000 :: Integer)) (Unverified message) `shouldBe` Just message
-    it "returns Just the message if the signature verifies with a slightly future timestamp" $
-      verifySignature key (now .-^ fromSeconds (1000 :: Integer)) (Unverified message) `shouldBe` Just message
+      verify now message `shouldBe` Just message
+    it "returns Just the message if the signature verifies with a recent timestamp" $ do
+      let now' = now .+^ fromSeconds (1000 :: Integer)
+      verify now' message `shouldBe` Just message
+    it "returns Just the message if the signature verifies with a slightly future timestamp" $ do
+      let now' = now .-^ fromSeconds (1000 :: Integer)
+      verify now' message `shouldBe` Just message
   with mkApp' $ do
     describe "/mg" $
       it "returns a simple message" $
