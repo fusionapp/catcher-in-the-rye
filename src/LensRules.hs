@@ -3,11 +3,10 @@ module LensRules
   ( noSigs
   ) where
 
-import Control.Lens (LensRules, lensRules, generateSignatures, (.~))
-import Data.Function ((&))
+import Control.Lens (LensRules, lensRules, generateSignatures, set)
 
 -- | Make lenses without signatures.
 --
 -- Writing the signatures out manually allows attaching Haddocks to them.
 noSigs :: LensRules
-noSigs = lensRules & generateSignatures .~ False
+noSigs = set generateSignatures False lensRules
