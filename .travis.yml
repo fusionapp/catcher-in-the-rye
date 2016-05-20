@@ -6,6 +6,10 @@ cache:
     - $HOME/.cabal
     - $HOME/.ghc
     - $HOME/.stack
+addons:
+  apt:
+    packages:
+      - libgmp-dev
 before_install:
   # Download and unpack the stack executable
   - mkdir -p $HOME/.local/bin
