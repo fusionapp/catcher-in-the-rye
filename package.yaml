@@ -1,0 +1,72 @@
+name: catcher-in-the-rye
+version: 1.0.0
+synopsis: Central point for static data uploads
+maintainer: Fusion Developers <dev@fusionapp.com>
+license: MIT
+github: fusionapp/catcher-in-the-rye
+
+ghc-options: -Wall -fwarn-missing-signatures -fwarn-incomplete-patterns
+dependencies:
+  - base >= 4.7 && < 5
+  - aeson
+  - bytestring
+  - bytestring-lexing
+  - containers
+  - cron
+  - cryptonite
+  - either
+  - lens
+  - memory
+  - monad-control
+  - monad-logger
+  - mtl
+  - persistent
+  - persistent-sqlite
+  - persistent-template
+  - servant-server
+  - text
+  - thyme
+  - transformers
+  - vector-space
+  - wai
+  - wai-extra
+  - warp
+  - wreq
+  - yaml
+default-extensions:
+  - DataKinds
+  - FlexibleContexts
+  - FlexibleInstances
+  - GADTs
+  - GeneralizedNewtypeDeriving
+  - MultiParamTypeClasses
+  - OverloadedStrings
+  - QuasiQuotes
+  - ScopedTypeVariables
+  - TemplateHaskell
+  - TypeFamilies
+  - TypeOperators
+
+library:
+  source-dirs: src
+
+executables:
+  catcher-in-the-rye:
+    main: Main.hs
+    source-dirs: app
+    dependencies:
+      - base
+      - catcher-in-the-rye
+      - warp-tls
+
+tests:
+  spec:
+    main: Spec.hs
+    source-dirs:
+      - test
+    dependencies:
+      - base
+      - catcher-in-the-rye
+      - hspec
+      - hspec-wai
+      - http-types

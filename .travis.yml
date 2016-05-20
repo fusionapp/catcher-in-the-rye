@@ -1,0 +1,36 @@
+sudo: false
+branches:
+  only:
+    - master
+# We bring our own GHC
+language: c
+cache:
+  directories:
+    - $HOME/.cabal
+    - $HOME/.ghc
+    - $HOME/.stack
+addons:
+  apt:
+    packages:
+      - libgmp-dev
+before_install:
+  # Download and unpack the stack executable
+  - mkdir -p $HOME/.local/bin
+  - export PATH=$HOME/.local/bin:$PATH
+  - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C $HOME/.local/bin '*/stack'
+  # Use the FPComplete's S3 Hackage mirror
+  - |
+    set -e
+    mkdir -p $HOME/.cabal
+    echo 'remote-repo: hackage.haskell.org:http://hackage.fpcomplete.com/' > $HOME/.cabal/config
+    echo 'remote-repo-cache: $HOME/.cabal/packages' >> $HOME/.cabal/config
+  # Install GHC etc
+  - stack setup
+install:
+  - stack build --test --no-run-tests
+script:
+  - stack --no-terminal test
+notifications:
+  email: false
+  slack:
+    secure: kClg5MEgwZopXtEXYcLpASpOhxq328/NaS9HNlwXCwI2HH9pdu91r3gMpcR/jAOdd1cAM4sMiyazWbia+SczAiQqNf7u7cpkNi0mZFWKw+ZmADYkenTLDuxaQHelTrhZDrtDVmZAuqlSd45mRa7qNyHzFhB9NR7YfupScFtuLB2KMb/cPSjvVgsPCrVsUOuXcEwZ/DNnERC/sy0acK4ywyZWArgL5+6ZZlOftxxjU5tta12D066PDxcgcA8y3qTkUa0kyOgUZEG4fB6zTp9m2YtISIhsHw1ciVCLS97Ohfc5i5zWkk25qxkxTHGeW61Xreillj/8j4X/10wvwBMZ6Gc6n7LuYUOIgup9euD341u3+KqYtnSbOiSO5GD1uodL+9ih3DH2mnFCO+a6cjtlFtYcgI4x+oZK6Bbt4mco0GoKGHv5lnsqvFh+odDkUbUJ6YGNdq9awCxxaSz8fVmN+7S6FrHylj9GpL2O6LbTEwYcgNeao4UNIGFgbKndggluKPz6EMoDmETysmLkIQqcL7JRNOi48vIwdoWt/ncX6kz0fpFncEAe8/L/ncbW/WBVmCaXCFU0+cCW6xZdIy3MMvVHfjYzm7X7JCzsVMupDD2oB86HhIY2H/StCWzRRkOLvAzN07SZpz/Gsy9nQmVCK31EmA4BdsIH+FWA4WLzRp4=

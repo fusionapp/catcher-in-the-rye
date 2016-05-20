@@ -1,0 +1,4 @@
+Payload
+    type PayloadTag
+    data ByteString
+    deriving Show
