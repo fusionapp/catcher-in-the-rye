@@ -10,13 +10,13 @@ import Database.Persist.Sqlite (ConnectionPool, runSqlPool)
 import Network.Wai.Handler.Warp (run, defaultSettings, setPort)
 import Network.Wai.Handler.WarpTLS (runTLS, tlsSettings)
 import Network.Wai.Middleware.RequestLogger (logStdout)
-import PayloadTag (fromText)
 import System.Cron (Job(Job), Schedule, execSchedule)
 import System.Environment (lookupEnv)
-import Upload (doUpload)
 
-import App
 import API
+import App
+import PayloadTag (fromText)
+import Upload (doUpload)
 
 -- | Run with our standard logging settings.
 runLoggingT :: LoggingT IO a -> IO a

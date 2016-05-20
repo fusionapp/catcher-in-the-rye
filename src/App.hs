@@ -35,12 +35,13 @@ import Data.Aeson.Types (FromJSON(..), (.:), camelTo2, withObject)
 import Data.Map.Strict (Map)
 import Data.Text (Text)
 import Database.Persist.Sqlite (ConnectionPool, SqlPersistT, createSqlitePool, runSqlPool, runMigrationSilent)
-import LensRules (noSigs)
-import Mailgun.APIKey (APIKey(..))
-import Models (migrateAll)
 import Servant (ServantErr)
 import System.Cron (CronSchedule)
 import System.Cron.Parser (parseCronSchedule)
+
+import LensRules (noSigs)
+import Mailgun.APIKey (APIKey(..))
+import Models (migrateAll)
 
 -- | A schedule for uploading a data import to its final destination.
 data UploadSchedule = UploadSchedule

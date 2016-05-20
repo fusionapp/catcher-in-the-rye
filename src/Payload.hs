@@ -3,9 +3,10 @@ module Payload
   ( storePayload
   ) where
 
-import App (AppM, runDB)
 import Control.Monad (void)
 import Database.Persist (insert, deleteWhere, (==.))
+
+import App (AppM, runDB)
 import Models
 
 -- | Store a payload in the database.

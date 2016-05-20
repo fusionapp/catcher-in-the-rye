@@ -9,7 +9,6 @@ module Mailgun
   , withMessage
   ) where
 
-import           App (AppM, appConfig, configMailgunApiKey)
 import           Control.Lens (view, review)
 import           Control.Monad (guard)
 import           Control.Monad.IO.Class (liftIO)
@@ -28,10 +27,12 @@ import           Data.Monoid ((<>))
 import           Data.Thyme.Clock (UTCTime, fromSeconds, getCurrentTime)
 import           Data.Thyme.Clock.POSIX (posixTime)
 import           Data.Thyme.Format.Aeson ()
-import           Files (Files, MultiPartData, MultiPartDataT)
-import           Mailgun.APIKey (APIKey(..))
 import           Network.Wai.Parse (fileContent)
 import           Servant (ServantErr(..), err403, err406)
+
+import           App (AppM, appConfig, configMailgunApiKey)
+import           Files (Files, MultiPartData, MultiPartDataT)
+import           Mailgun.APIKey (APIKey(..))
 
 -- | Servant capture for a Mailgun message as multipart/form-data.
 type MessageBody = Files (Maybe UnverifiedMessage)

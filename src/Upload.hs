@@ -10,8 +10,9 @@ import Data.Monoid ((<>))
 import Data.Text (pack)
 import Database.Persist (selectList, deleteWhere, (==.), entityVal)
 import Database.Persist.Sqlite (SqlPersistT)
-import Models
 import Network.Wreq (post)
+
+import Models
 import PayloadTag (PayloadTag)
 
 -- | Perform a scheduled upload run.

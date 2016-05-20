@@ -3,15 +3,16 @@ module API
     ( serveApp
     ) where
 
-import App (App, AppM, Handler)
 import Control.Monad.Trans.Reader (runReaderT)
 import Data.Text (Text)
+import Network.Wai (Application)
+import Servant
+
+import App (App, AppM, Handler)
 import Mailgun (MessageBody, msgAttachment, withMessage)
 import Models (Payload(Payload))
-import Network.Wai (Application)
 import Payload (storePayload)
 import PayloadTag (PayloadTag(Vehicle))
-import Servant
 
 type AppServer api = ServerT api AppM
 

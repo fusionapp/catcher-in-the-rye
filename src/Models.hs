@@ -6,6 +6,7 @@ module Models where
 import Data.ByteString (ByteString)
 import Database.Persist.Quasi
 import Database.Persist.TH
+
 import PayloadTag (PayloadTag)
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"]
