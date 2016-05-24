@@ -26,6 +26,7 @@ dependencies:
   - persistent
   - persistent-sqlite
   - persistent-template
+  - pretty-show
   - servant-server
   - text
   - thyme

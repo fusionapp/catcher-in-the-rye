@@ -72,7 +72,8 @@ mkSlackNotification ns = def { messageAttachments = mkAttachment <$> ns }
           , attachmentFields =
             [ SlackField "Payload" (T.pack (show tag)) True
             , SlackField "Destination" (hostname destination) True
-            , SlackField "Reason" (T.pack reason) False
+            , SlackField "Reason" ("```" <> T.pack reason <> "```") False
             ]
+          , attachmentMrkdwnIn = ["fields"]
           }
         hostname uri = T.pack . fromMaybe "<unknown>" $ uriRegName <$> (uriAuthority =<< parseAbsoluteURI uri)

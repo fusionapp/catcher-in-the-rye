@@ -34,6 +34,7 @@ data SlackAttachment = SlackAttachment
   , attachmentTitleLink :: Maybe Text
   , attachmentText :: Maybe Text
   , attachmentFields :: [SlackField]
+  , attachmentMrkdwnIn :: [Text]
   } deriving (Show, Eq)
 
 deriveJSON slackOptions ''SlackAttachment
@@ -50,6 +51,7 @@ instance Default SlackAttachment where
         , attachmentTitleLink = Nothing
         , attachmentText = Nothing
         , attachmentFields = []
+        , attachmentMrkdwnIn = []
         }
 
 -- | A Slack message.
