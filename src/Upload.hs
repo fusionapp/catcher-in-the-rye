@@ -3,29 +3,38 @@ module Upload
   ( doUpload
   ) where
 
+import Control.Exception (try)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Logger (MonadLogger, logInfo)
 import Data.Foldable (traverse_)
-import Data.Monoid ((<>))
-import Data.Text (pack)
+import Data.Traversable (for)
 import Database.Persist (selectList, deleteWhere, (==.), entityVal)
-import Database.Persist.Sqlite (SqlPersistT)
+import Network.HTTP.Client (HttpException)
 import Network.Wreq (post)
 
+import App (AppT, runDB)
+import Notifications (NotificationTarget, Notification(Success, Failure), deliverNotifications)
 import Models
 import PayloadTag (PayloadTag)
 
 -- | Perform a scheduled upload run.
 --
 -- Payloads with the given tag will be POSTed to the given destination.
-doUpload :: (MonadIO m, MonadLogger m)
+doUpload :: MonadIO m
          => PayloadTag
          -- ^ The type of payload to upload.
-         -> String
+         -> [String]
          -- ^ The URI to upload it to.
-         -> SqlPersistT m ()
-doUpload tag destination = do
-  $(logInfo) $ "Performing scheduled upload to: " <> pack destination
-  d <- selectList [PayloadType ==. tag] []
-  liftIO $ traverse_ (post destination . payloadData . entityVal) d
-  deleteWhere [PayloadType ==. tag]
+         -> [NotificationTarget]
+         -- ^ The targets to notify after the upload.
+         -> AppT m ()
+doUpload tag destinations targets = do
+  notifications <- runDB $ do
+    payloads <- selectList [PayloadType ==. tag] []
+    ns <- liftIO . for destinations $ \destination -> do
+      r <- try $ traverse_ (post destination . payloadData . entityVal) payloads
+      return $ case r of
+        Left (e :: HttpException) -> Failure tag destination (show e)
+        Right _ -> Success tag destination
+    deleteWhere [PayloadType ==. tag]
+    return ns
+  liftIO $ traverse_ (deliverNotifications notifications) targets
