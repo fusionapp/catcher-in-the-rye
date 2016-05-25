@@ -131,7 +131,8 @@ withMessage handler multipart = do
   key <- view (appConfig . configMailgunApiKey)
   m <- liftIO $ multipart (return . multipartToMessage)
   case m of
-    Nothing -> lift (throwE errInvalid)
+    Nothing -> err errInvalid
     Just unsigned -> case verifySignature key now unsigned of
-      Nothing -> lift (throwE errSignature)
+      Nothing -> err errSignature
       Just message -> handler message
+  where err = lift . throwE

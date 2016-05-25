@@ -4,9 +4,11 @@ module App (
     App
   , appConfig
   , appConnPool
+  , AppT
   , AppM
   , Handler
   , mkApp
+  , runAppT
   , runDB
   -- * Global application configuration
   , AppConfig(..)
@@ -20,7 +22,8 @@ module App (
   -- ** Upload scheduling
   , UploadSchedule(..)
   , scheduleSchedule
-  , scheduleDestination
+  , scheduleDestinations
+  , scheduleNotifications
   ) where
 
 import Control.Lens (Lens', view, makeLensesWith)
@@ -29,9 +32,9 @@ import Control.Monad.Logger (MonadLogger)
 import Control.Monad.Reader (MonadReader)
 import Control.Monad.Trans.Control (MonadBaseControl)
 import Control.Monad.Trans.Except (ExceptT)
-import Control.Monad.Trans.Reader (ReaderT)
+import Control.Monad.Trans.Reader (ReaderT, runReaderT)
 import Data.Aeson.TH
-import Data.Aeson.Types (FromJSON(..), (.:), camelTo2, withObject)
+import Data.Aeson.Types (FromJSON(..), (.:), withObject)
 import Data.Map.Strict (Map)
 import Data.Text (Text)
 import Database.Persist.Sqlite (ConnectionPool, SqlPersistT, createSqlitePool, runSqlPool, runMigrationSilent)
@@ -39,14 +42,16 @@ import Servant (ServantErr)
 import System.Cron (CronSchedule)
 import System.Cron.Parser (parseCronSchedule)
 
-import LensRules (noSigs)
 import Mailgun.APIKey (APIKey(..))
 import Models (migrateAll)
+import Notifications (NotificationTarget)
+import Rules (noSigs, jsonOptions)
 
 -- | A schedule for uploading a data import to its final destination.
 data UploadSchedule = UploadSchedule
   { _scheduleSchedule :: CronSchedule
-  , _scheduleDestination :: String
+  , _scheduleDestinations :: [String]
+  , _scheduleNotifications :: [NotificationTarget]
   } deriving (Show, Eq)
 makeLensesWith noSigs ''UploadSchedule
 
@@ -54,13 +59,17 @@ instance FromJSON UploadSchedule where
   parseJSON = withObject "UploadSchedule" $
     \o -> UploadSchedule
          <$> (either fail return . parseCronSchedule =<< o .: "schedule")
-         <*> o .: "destination"
+         <*> o .: "destinations"
+         <*> o .: "notifications"
 
 -- | The schedule on which uploads will be performed.
 scheduleSchedule :: Lens' UploadSchedule CronSchedule
 
--- | The destination URI the data will be uploaded to.
-scheduleDestination :: Lens' UploadSchedule String
+-- | The destination URIs the data will be uploaded to.
+scheduleDestinations :: Lens' UploadSchedule [String]
+
+-- | The targets to notify once the uploads are complete.
+scheduleNotifications :: Lens' UploadSchedule [NotificationTarget]
 
 -- | Configuration for the application.
 data AppConfig = AppConfig
@@ -72,7 +81,7 @@ data AppConfig = AppConfig
   , _configHttpsPort :: Maybe Int
   , _configCertificate :: Maybe FilePath
   } deriving (Show, Eq)
-deriveFromJSON defaultOptions {fieldLabelModifier = camelTo2 '-' . drop 7} ''AppConfig
+deriveFromJSON jsonOptions ''AppConfig
 makeLensesWith noSigs ''AppConfig
 
 -- | The Mailgun API key; needed to verify signatures.
@@ -117,8 +126,11 @@ appConnPool :: Lens' App ConnectionPool
 -- using.
 type Handler = ExceptT ServantErr IO
 
+-- | Monad transformer for our app.
+type AppT m = ReaderT App m
+
 -- | Monad transformer stack for a handler in our app.
-type AppM = ReaderT App Handler
+type AppM = AppT Handler
 
 -- | Build the application from a configuration.
 --
@@ -130,6 +142,10 @@ mkApp config = do
     -- Discard the list of migrations run
     _ <- runSqlPool (runMigrationSilent migrateAll) pool
     return (App config pool)
+
+-- | Run an AppT action.
+runAppT :: App -> AppT m a -> m a
+runAppT app a = runReaderT a app
 
 -- | Run a database transaction in the application's DB connection pool.
 runDB :: (MonadIO m, MonadReader App m) => SqlPersistT IO a -> m a

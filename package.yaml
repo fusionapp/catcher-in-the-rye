@@ -14,15 +14,19 @@ dependencies:
   - containers
   - cron
   - cryptonite
+  - data-default
   - either
+  - http-client
   - lens
   - memory
   - monad-control
   - monad-logger
   - mtl
+  - network-uri
   - persistent
   - persistent-sqlite
   - persistent-template
+  - pretty-show
   - servant-server
   - text
   - thyme
@@ -42,6 +46,7 @@ default-extensions:
   - MultiParamTypeClasses
   - OverloadedStrings
   - QuasiQuotes
+  - RecordWildCards
   - ScopedTypeVariables
   - TemplateHaskell
   - TypeFamilies

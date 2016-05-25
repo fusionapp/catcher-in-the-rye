@@ -1,12 +1,12 @@
 module Main where
 
 import Control.Lens (view, itraverse_)
+import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Logger (LoggingT, runStderrLoggingT, filterLogger, LogLevel(..))
 import Control.Monad.State (modify)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Yaml (decodeFileEither, prettyPrintParseException)
-import Database.Persist.Sqlite (ConnectionPool, runSqlPool)
 import Network.Wai.Handler.Warp (run, defaultSettings, setPort)
 import Network.Wai.Handler.WarpTLS (runTLS, tlsSettings)
 import Network.Wai.Middleware.RequestLogger (logStdout)
@@ -19,23 +19,23 @@ import PayloadTag (fromText)
 import Upload (doUpload)
 
 -- | Run with our standard logging settings.
-runLoggingT :: LoggingT IO a -> IO a
+runLoggingT :: (MonadIO m) => LoggingT m a -> m a
 runLoggingT = runStderrLoggingT . filterLogger (const (> LevelDebug))
 
 -- | Schedule uploads to a particular destination.
-scheduleUpload :: ConnectionPool
-               -- ^ Application DB connection pool.
+scheduleUpload :: App
+               -- ^ Application record.
                -> Text
                -- ^ Text form of the payload tag.
                -> UploadSchedule
                -- ^ Schedule uploads will be run on.
                -> Schedule ()
                -- ^ An action in the 'Schedule' monad.
-scheduleUpload pool typeText (UploadSchedule schedule destination) =
+scheduleUpload app typeText (UploadSchedule schedule destinations targets) =
   case fromText typeText of
     Nothing -> return ()
     Just importType -> modify (Job schedule job:)
-      where job = runLoggingT $ runSqlPool (doUpload importType destination) pool
+      where job = runLoggingT . runAppT app $ doUpload importType destinations targets
 
 main :: IO ()
 main = do
@@ -43,9 +43,7 @@ main = do
   config <- either (fail . prettyPrintParseException) return =<<
     decodeFileEither (fromMaybe "config.yaml" configPath)
   app <- runLoggingT (mkApp config)
-  let schedules = view configSchedules config
-      pool = view appConnPool app
-  _ <- execSchedule $ itraverse_ (scheduleUpload pool) schedules
+  _ <- execSchedule $ itraverse_ (scheduleUpload app) (view configSchedules config)
   let wapp = logStdout (serveApp app)
   case view configHttpsPort config of
     Just port -> case view configCertificate config of
