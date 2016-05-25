@@ -1,22 +1,19 @@
 cache:
   mount:
-    - /drone/cabal
-    - /drone/ghc
     - /drone/stack
 build:
   stack-build:
     image: fusionapp/debian-stack
     pull: true
     commands:
-      - mkdir -p /drone/cabal /drone/ghc /drone/stack
-      - ln -sf /drone/cabal $HOME/.cabal
-      - ln -sf /drone/ghc $HOME/.ghc
+      - mkdir -p /drone/stack
       - ln -sf /drone/stack $HOME/.stack
       - stack build --test
   stack-docker-setup:
     image: fusionapp/debian-stack
     pull: true
     commands:
+      - ln -sf /drone/stack $HOME/.stack
       - mkdir -p image image/usr/local/bin
       - cp Dockerfile image
       - stack --local-bin-path $PWD/image/usr/local/bin build --copy-bins
@@ -29,8 +26,8 @@ publish:
     insecure: false
     repo: fusionapp/catcher-in-the-rye
     tag: $$BRANCH
-    when:
-      branch: [master]
+    #when:
+    #  branch: [master]
 notify:
   slack:
     webhook_url: $$SLACK_URL
