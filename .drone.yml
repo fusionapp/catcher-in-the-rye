@@ -1,0 +1,40 @@
+cache:
+  mount:
+    - /drone/cabal
+    - /drone/ghc
+    - /drone/stack
+build:
+  stack-build:
+    image: fpco/stack-build
+    pull: true
+    commands:
+      - mkdir -p /drone/cabal /drone/ghc /drone/stack
+      - ln -sf /drone/cabal $HOME/.cabal
+      - ln -sf /drone/ghc $HOME/.ghc
+      - ln -sf /drone/stack $HOME/.stack
+      - stack build --test
+  stack-docker:
+    image: fusionapp/debian-stack
+    pull: true
+    commands:
+      - mkdir -p image
+      - cp Dockerfile image
+      - stack --local-bin-path $PWD/image/usr/local/bin build --copy-bins
+#    when:
+#      branch: [master]
+publish:
+  docker:
+    registry: scarlet.fusionapp.com:5001
+    mirror: https://scarlet.fusionapp.com:5002
+    insecure: false
+    repo: fusionapp/catcher-in-the-rye
+    tag: $$BRANCH
+    when:
+      branch: [master]
+notify:
+  slack:
+    webhook_url: $$SLACK_URL
+    channel: general
+    username: drone
+#branches:
+#  - master
