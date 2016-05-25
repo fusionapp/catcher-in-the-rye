@@ -13,11 +13,11 @@ build:
       - ln -sf /drone/ghc $HOME/.ghc
       - ln -sf /drone/stack $HOME/.stack
       - stack build --test
-  stack-docker:
+  stack-docker-setup:
     image: fusionapp/debian-stack
     pull: true
     commands:
-      - mkdir -p image
+      - mkdir -p image image/usr/local/bin
       - cp Dockerfile image
       - stack --local-bin-path $PWD/image/usr/local/bin build --copy-bins
 #    when:
