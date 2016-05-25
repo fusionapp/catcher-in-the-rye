@@ -5,7 +5,7 @@ cache:
     - /drone/stack
 build:
   stack-build:
-    image: fpco/stack-build
+    image: fusionapp/debian-stack
     pull: true
     commands:
       - mkdir -p /drone/cabal /drone/ghc /drone/stack
