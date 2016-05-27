@@ -6,19 +6,15 @@ build:
   stack-build:
     image: fusionapp/debian-stack
     pull: true
-    env:
-      - STACK_ROOT=/drone/stack
     commands:
-      - stack build --test
+      - stack --stack-root /drone/stack build --test
   stack-docker-setup:
     image: fusionapp/debian-stack
     pull: true
-    env:
-      - STACK_ROOT=/drone/stack
     commands:
       - mkdir -p image image/usr/local/bin
       - cp Dockerfile image
-      - stack --local-bin-path $PWD/image/usr/local/bin build --copy-bins
+      - stack --stack-root /drone/stack --local-bin-path $PWD/image/usr/local/bin build --copy-bins
 #    when:
 #      branch: [master]
 publish:
