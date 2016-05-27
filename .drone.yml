@@ -1,7 +1,6 @@
 cache:
   mount:
     - /drone/stack
-    - /drone/stack-work
 build:
   stack-build:
     image: fusionapp/debian-stack
