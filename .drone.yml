@@ -1,22 +1,24 @@
 cache:
   mount:
     - /drone/stack
+    - /drone/stack-work
 build:
   stack-build:
     image: fusionapp/debian-stack
     pull: true
+    env:
+      - STACK_ROOT=/drone/stack
     commands:
-      - mkdir -p /drone/stack
-      - ln -sf /drone/stack $HOME/.stack
-      - stack build --test
+      - stack --work-dir /drone/stack-work build --test
   stack-docker-setup:
     image: fusionapp/debian-stack
     pull: true
+    env:
+      - STACK_ROOT=/drone/stack
     commands:
-      - ln -sf /drone/stack $HOME/.stack
       - mkdir -p image image/usr/local/bin
       - cp Dockerfile image
-      - stack --local-bin-path $PWD/image/usr/local/bin build --copy-bins
+      - stack --work-dir /drone/stack-work --local-bin-path $PWD/image/usr/local/bin build --copy-bins
 #    when:
 #      branch: [master]
 publish:
