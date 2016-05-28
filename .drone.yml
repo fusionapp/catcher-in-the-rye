@@ -12,8 +12,9 @@ build:
       - mkdir -p image image/usr/local/bin
       - cp Dockerfile image
       - stack --stack-root /drone/stack --local-bin-path $PWD/image/usr/local/bin build --copy-bins
-#    when:
-#      branch: [master]
+    when:
+      branch:
+        - master
 publish:
   docker:
     registry: scarlet.fusionapp.com:5001
@@ -23,12 +24,13 @@ publish:
     file: image/Dockerfile
     context: image
     tag: $$BRANCH
-    #when:
-    #  branch: [master]
+    when:
+      branch:
+        - master
 notify:
   slack:
     webhook_url: $$SLACK_URL
     channel: general
     username: drone
-#branches:
-#  - master
+branches:
+  - master
