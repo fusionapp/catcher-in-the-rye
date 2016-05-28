@@ -1,2 +1,2 @@
-FROM debian:jessie
+FROM fusionapp/debian-stack-run
 ADD ./ /
