@@ -4,13 +4,15 @@ module Upload
   ) where
 
 import Control.Exception (try)
+import Control.Lens (set)
 import Control.Monad (unless)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Foldable (traverse_)
 import Data.Traversable (for)
 import Database.Persist (selectList, deleteWhere, (==.), entityVal)
-import Network.HTTP.Client (HttpException)
-import Network.Wreq (post)
+import Network.HTTP.Client (HttpException, ManagerSettings(managerResponseTimeout))
+import Network.HTTP.Client.TLS (tlsManagerSettings)
+import Network.Wreq (defaults, manager, postWith)
 import Text.Show.Pretty (ppShow)
 
 import App (AppT, runDB)
@@ -40,7 +42,8 @@ doUpload tag destinations targets = do
         isFailure _ = False
         uploadPayloads [] = return []
         uploadPayloads payloads = for destinations $ \destination -> do
-          r <- try $ traverse_ (post destination . payloadData . entityVal) payloads
+          r <- try $ traverse_ (postWith options destination . payloadData . entityVal) payloads
           return $ case r of
             Left (e :: HttpException) -> Failure tag destination (ppShow e)
             Right _ -> Success tag destination
+        options = set manager (Left (tlsManagerSettings {managerResponseTimeout = Just 600000000 })) defaults
