@@ -1,0 +1,36 @@
+cache:
+  mount:
+    - /drone/stack
+build:
+  stack-build:
+    image: fusionapp/debian-stack
+    pull: true
+    commands:
+      - stack --stack-root /drone/stack setup
+      - stack --stack-root /drone/stack build --test
+      # Commands below here are only needed for the Docker build
+      - mkdir -p image image/usr/local/bin
+      - cp Dockerfile image
+      - stack --stack-root /drone/stack --local-bin-path $PWD/image/usr/local/bin build --copy-bins
+    when:
+      branch:
+        - master
+publish:
+  docker:
+    registry: scarlet.fusionapp.com:5001
+    mirror: https://scarlet.fusionapp.com:5002
+    insecure: false
+    repo: fusionapp/catcher-in-the-rye
+    file: image/Dockerfile
+    context: image
+    tag: $$BRANCH
+    when:
+      branch:
+        - master
+notify:
+  slack:
+    webhook_url: $$SLACK_URL
+    channel: general
+    username: drone
+branches:
+  - master
