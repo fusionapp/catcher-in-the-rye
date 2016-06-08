@@ -46,4 +46,5 @@ doUpload tag destinations targets = do
           return $ case r of
             Left (e :: HttpException) -> Failure tag destination (ppShow e)
             Right _ -> Success tag destination
-        options = set manager (Left (tlsManagerSettings {managerResponseTimeout = Just 600000000 })) defaults
+        options = set manager (Left (tlsManagerSettings {managerResponseTimeout = Just (minutes 10) })) defaults
+        minutes n = n * 60 * 1000000
