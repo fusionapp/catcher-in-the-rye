@@ -17,6 +17,7 @@ dependencies:
   - data-default
   - either
   - http-client
+  - http-client-tls
   - lens
   - memory
   - monad-control
