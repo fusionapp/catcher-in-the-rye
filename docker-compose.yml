@@ -1,0 +1,10 @@
+catcher-in-the-rye:
+  log_driver: journald
+  labels:
+    io.rancher.container.pull_image: always
+  command:
+  - /usr/local/bin/catcher-in-the-rye
+  image: scarlet.fusionapp.com:5000/fusionapp/catcher-in-the-rye:master
+  volumes:
+  - /srv/catcher-in-the-rye:/srv/catcher-in-the-rye
+  working_dir: /srv/catcher-in-the-rye
