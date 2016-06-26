@@ -27,6 +27,16 @@ publish:
     when:
       branch:
         - master
+deploy:
+  rancher:
+    url: https://rancher.fusionapp.com
+    access_key: $$RANCHER_ACCESS_KEY
+    secret_key: $$RANCHER_SECRET_KEY
+    service: catcher-in-the-rye/catcher-in-the-rye
+    docker_image: scarlet.fusionapp.com:5000/fusionapp/catcher-in-the-rye:master
+    when:
+      branch:
+        - master
 notify:
   slack:
     webhook_url: $$SLACK_URL
