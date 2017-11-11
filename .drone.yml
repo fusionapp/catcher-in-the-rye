@@ -58,6 +58,7 @@ pipeline:
   publish:
     image: plugins/docker
     context: image
+    dockerfile: image/Dockerfile
     repo: eu.gcr.io/fusion-168903/catcher-in-the-rye
     tags:
       - ${DRONE_BRANCH}
