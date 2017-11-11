@@ -34,7 +34,7 @@ pipeline:
     image: fusionapp/debian-stack
     pull: true
     commands:
-      - mkdir -p image image/usr/local/bin
+      - mkdir -p image/usr/local/bin
       - cp Dockerfile image
       - stack --stack-root $PWD/stack --local-bin-path $PWD/image/usr/local/bin build --copy-bins
     when:
@@ -57,6 +57,7 @@ pipeline:
       - sftp_cache_password
   publish:
     image: plugins/docker
+    context: image
     repo: eu.gcr.io/fusion-168903/catcher-in-the-rye
     tags:
       - ${DRONE_BRANCH}
