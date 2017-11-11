@@ -23,8 +23,8 @@ pipeline:
     image: fusionapp/debian-stack
     pull: true
     commands:
-      - stack --stack-root stack setup
-      - stack --stack-root stack build --test
+      - stack --stack-root $PWD/stack setup
+      - stack --stack-root $PWD/stack build --test
     when:
       event:
         - push
@@ -36,7 +36,7 @@ pipeline:
     commands:
       - mkdir -p image image/usr/local/bin
       - cp Dockerfile image
-      - stack --stack-root stack --local-bin-path $PWD/image/usr/local/bin build --copy-bins
+      - stack --stack-root $PWD/stack --local-bin-path $PWD/image/usr/local/bin build --copy-bins
     when:
       event: push
       branch: master
