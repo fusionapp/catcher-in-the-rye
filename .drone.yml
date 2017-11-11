@@ -1,46 +1,111 @@
-cache:
-  mount:
-    - /drone/stack
-build:
+workspace:
+  base: /drone
+  path: src/github.com/fusionapp/catcher-in-the-rye
+pipeline:
+  restore_cache:
+    image: appleboy/drone-sftp-cache
+    server: sftp-cache.drone7.non-production.fusionapp.com
+    port: 45945
+    username: drone-cache
+    path: /drone-cache
+    restore: true
+    ignore_branch: true
+    mount:
+      - stack
+    when:
+      event:
+        - push
+        - pull_request
+        - tag
+    secrets:
+      - sftp_cache_password
   stack-build:
     image: fusionapp/debian-stack
     pull: true
     commands:
-      - stack --stack-root /drone/stack setup
-      - stack --stack-root /drone/stack build --test
-      # Commands below here are only needed for the Docker build
-      - mkdir -p image image/usr/local/bin
+      - stack --stack-root $PWD/stack setup
+      - stack --stack-root $PWD/stack build --test
+    when:
+      event:
+        - push
+        - pull_request
+        - tag
+  stack-docker:
+    image: fusionapp/debian-stack
+    pull: true
+    commands:
+      - mkdir -p image/usr/local/bin
       - cp Dockerfile image
-      - stack --stack-root /drone/stack --local-bin-path $PWD/image/usr/local/bin build --copy-bins
+      - stack --stack-root $PWD/stack --local-bin-path $PWD/image/usr/local/bin build --copy-bins
     when:
-      branch:
-        - master
-publish:
-  docker:
-    registry: scarlet.fusionapp.com:5001
-    mirror: https://scarlet.fusionapp.com:5002
-    insecure: false
-    repo: fusionapp/catcher-in-the-rye
-    file: image/Dockerfile
+      event: push
+      branch: master
+  rebuild_cache:
+    image: appleboy/drone-sftp-cache
+    server: sftp-cache.drone7.non-production.fusionapp.com
+    port: 45945
+    username: drone-cache
+    path: /drone-cache
+    rebuild: true
+    ignore_branch: true
+    mount:
+      - stack
+    when:
+      event: push
+      branch: master
+    secrets:
+      - sftp_cache_password
+  publish:
+    image: plugins/docker
     context: image
-    tag: $$BRANCH
+    repo: eu.gcr.io/fusion-168903/catcher-in-the-rye
+    tags:
+      - ${DRONE_BRANCH}
+      - git-${DRONE_COMMIT_SHA}
+    registry: eu.gcr.io
+    mirror: https://eu-mirror.gcr.io
+    username: _json_key
     when:
-      branch:
-        - master
-deploy:
-  rancher:
+      event: push
+      branch: master
+    secrets:
+      - docker_password
+  deploy:
+    image: peloton/drone-rancher
     url: https://rancher.fusionapp.com
-    access_key: $$RANCHER_ACCESS_KEY
-    secret_key: $$RANCHER_SECRET_KEY
     service: catcher-in-the-rye/catcher-in-the-rye
-    docker_image: scarlet.fusionapp.com:5000/fusionapp/catcher-in-the-rye:master
+    docker_image: eu.gcr.io/fusion-168903/catcher-in-the-rye:git-${DRONE_COMMIT_SHA}
+    start_first: false
+    confirm: true
+    timeout: 120
     when:
-      branch:
-        - master
-notify:
+      event: push
+      branch: master
+    secrets:
+      - source: rancher_nonprod_access_key
+        target: rancher_access_key
+      - source: rancher_nonprod_secret_key
+        target: rancher_secret_key
   slack:
-    webhook_url: $$SLACK_URL
-    channel: general
-    username: drone
+    image: plugins/slack
+    secrets:
+      - slack_webhook
+    when:
+      status:
+        - success
+        - failure
+  slack_production:
+    image: plugins/slack
+    secrets:
+      - slack_webhook
+    channel: production
+    when:
+      event: push
+      branch: master
+      status:
+        - success
+        - failure
 branches:
   - master
+  - staging
+  - trying
