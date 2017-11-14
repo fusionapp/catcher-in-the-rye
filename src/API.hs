@@ -12,16 +12,17 @@ import App (App, AppM, Handler)
 import Mailgun (MessageBody, msgAttachment, withMessage)
 import Models (Payload(Payload))
 import Payload (storePayload)
-import PayloadTag (PayloadTag(Vehicle))
+import PayloadTag (PayloadTag(..))
 
 type AppServer api = ServerT api AppM
 
-type MeadLoader = Get '[PlainText] Text
-                  :<|> MessageBody :> Post '[JSON] ()
+type SimpleLoader = Get '[PlainText] Text
+                    :<|> MessageBody :> Post '[JSON] ()
 
 type API = "mg" :> (
   Get '[PlainText] Text
-  :<|> "mead" :> MeadLoader
+  :<|> "mead" :> SimpleLoader
+  :<|> "motorite" :> SimpleLoader
   )
 
 api :: Proxy API
@@ -31,13 +32,15 @@ readerToHandler :: App -> AppM :~> Handler
 readerToHandler app = Nat $ \x -> runReaderT x app
 
 server :: AppServer API
-server = root :<|> meadLoader
+server = root
+         :<|> simpleLoader "M&M loader endpoint." Vehicle
+         :<|> simpleLoader "Motorite loader endpoint." Motorite
   where root = return "Mailgun service endpoint."
 
-meadLoader :: AppServer MeadLoader
-meadLoader = root :<|> withMessage loadData
-  where root = return "M&M loader endpoint."
-        loadData message = storePayload (Payload Vehicle (msgAttachment message))
+simpleLoader :: Text -> PayloadTag -> AppServer SimpleLoader
+simpleLoader desc tag = root :<|> withMessage loadData
+  where root = return desc
+        loadData message = storePayload (Payload tag (msgAttachment message))
 
 -- | Serve the API as a WAI application.
 serveApp :: App -> Application
